@@ -1,13 +1,3 @@
-def recommend_group_lms(model, dataset, user_ids, num_items = 5):
-#     """Recommend top movies for the group based on least misery strategy"""
-
-#      # Get item indices
-#     item_ids = np.arange(len(dataset.mapping()[2]))
-
-#     # Predict scores for each user
-#     group_scores = np.zeros(len(item_ids))
-
-#     for user_id in user_ids:
-#         user_scores = model.predict(np.repeat(user_id, len(item_ids)), item_ids)
-#         group_scores += user_scores  # Sum scores across users
-
+# Pick 5 random users from your dataset
+unique_users = df["User_ID"].unique()
+group_user_ids = random.sample(list(unique_users), 5)

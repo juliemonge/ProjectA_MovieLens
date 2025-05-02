@@ -29,7 +29,12 @@ for _, row in df.iterrows():
 # Build interaction matrix
 (interaction_matrix, weights) = dataset.build_interactions(interactions)
 
+# Train a BPR Model
+model = LightFM(loss="bpr")  # Bayesian Personalized Ranking
+model.fit(interaction_matrix, epochs=5, num_threads=1)
 
+with open("lightfm_bpr_model.pkl", "wb") as f:
+    pickle.dump(model, f)
 
 # Save interaction matrix
 sparse.save_npz("interaction_matrix.npz", interaction_matrix)
@@ -37,3 +42,4 @@ sparse.save_npz("interaction_matrix.npz", interaction_matrix)
 # Save dataset mappings (contains user/item ID mappings)
 with open("lightfm_dataset.pkl", "wb") as f:
     pickle.dump(dataset, f)
+
