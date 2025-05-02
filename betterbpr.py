@@ -1,0 +1,49 @@
+import pandas as pd
+import numpy as np
+from lightfm import LightFM
+from lightfm.data import Dataset
+from lightfm.evaluation import precision_at_k
+
+# Load user pairwise preferences data
+df = pd.read_csv("/Users/juliemongehallan/Documents/Datatek/Data_Science/Vår 2025/Data Mining/ProjectA_MovieLens/generated_data/user_pairwise_preferences.csv")
+
+# Initialize LightFM Dataset
+dataset = Dataset()
+dataset.fit(df["User_ID"].unique(), np.concatenate([df["Preferred"].unique(), df["Not_Preferred"].unique()]))
+
+# Create interaction matrix based on the pairwise preferences
+interactions = []
+
+for _, row in df.iterrows():
+    user_id = row["User_ID"]
+    preferred_item = row["Preferred"]
+    not_preferred_item = row["Not_Preferred"]
+    
+    # Set interaction for the preferred item as 1, and not preferred as 0
+    interactions.append((user_id, preferred_item, 1))  # User prefers this item
+    interactions.append((user_id, not_preferred_item, 0))  # User does not prefer this item
+
+# Build interaction matrix
+(interaction_matrix, weights) = dataset.build_interactions(interactions)
+
+# Train a BPR Model
+model = LightFM(loss="bpr")  # Bayesian Personalized Ranking
+model.fit(interaction_matrix, epochs=5, num_threads=4)
+
+# Get recommendations for a user
+def recommend(model, dataset, user_id, num_items=5):
+    """ Recommend top movies for a given user using BPR model. """
+    item_ids = np.arange(len(dataset.mapping()[2]))  # Get item indices
+    scores = model.predict(user_id, item_ids)  # Predict scores
+    top_items = np.argsort(-scores)[:num_items]  # Sort by highest score
+    
+    # Convert item indices back to actual movie IDs
+    reverse_item_mapping = dataset.mapping()[2]
+    recommended_movies = [reverse_item_mapping[i] for i in top_items]
+    
+    return recommended_movies
+
+# Example: Recommend movies for user 1
+user_id = 1
+recommendations = recommend(model, dataset, user_id, num_items=5)
+print(f"Recommended movies for User {user_id}: {recommendations}")
