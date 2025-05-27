@@ -1,4 +1,4 @@
-import BPR
+from BPR import BPR
 import pandas as pd
 
 df = pd.read_csv("generated_data/user_pairwise_preferences.csv")
@@ -17,5 +17,6 @@ triplets = triplets.tolist()
 num_users = len(user2id)
 num_items = len(item2id)
 
-bpr = BPR(num_users=num_users, num_items=num_items, latent_dim=64, learning_rate=0.01, reg=0.01)
-bpr.train(data=triplets, epochs=10)
+bpr = BPR(num_users=num_users, num_items=num_items)
+bpr.train(data=triplets, epochs=5, eval_df=df, user2id=user2id, item2id=item2id)
+bpr.save_bpr_model(user2id, item2id, path="bpr_model1_with evaluations.pkl")
