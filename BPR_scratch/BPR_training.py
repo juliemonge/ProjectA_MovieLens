@@ -18,5 +18,5 @@ num_users = len(user2id)
 num_items = len(item2id)
 
 bpr = BPR(num_users=num_users, num_items=num_items)
-bpr.train(data=triplets, epochs=5, eval_df=df, user2id=user2id, item2id=item2id)
-bpr.save_bpr_model(user2id, item2id, path="bpr_model1_with evaluations.pkl")
+bpr.train(data=triplets, eval_df=df, user2id=user2id, item2id=item2id)
+bpr.save_bpr_model(user2id, item2id)
