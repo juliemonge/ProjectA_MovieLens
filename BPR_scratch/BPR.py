@@ -6,7 +6,7 @@ import pickle
 from scipy.special import expit
 
 class BPR:
-    def __init__(self, num_users, num_items, latent_dim=128, learning_rate=0.003, reg=0.025, k=5, epochs=10, max_users=1000):
+    def __init__(self, num_users, num_items, latent_dim=128, learning_rate=0.001, reg=0.025, k=10, epochs=10, max_users=1000):
         self.num_users = num_users
         self.num_items = num_items
         self.latent_dim = latent_dim
@@ -21,6 +21,9 @@ class BPR:
         self.item_factors = np.random.normal(0, 0.01, (num_items, latent_dim))
 
     def train(self, data, epochs=10, eval_df=None, user2id=None, item2id=None):
+        best_precision = 0
+        patience = 3
+        no_improve_epochs = 0
         if epochs is None:
             epochs = self.epochs  # fallback to default set in __init__
 
@@ -46,7 +49,7 @@ class BPR:
                 if current_precision > best_precision:
                     best_precision = current_precision
                     no_improve_epochs = 0
-                    self.save_bpr_model(user2id, item2id, path="best_model.pkl")
+                    self.save_bpr_model(user2id, item2id, path="best_model5.pkl")
                 else:
                     no_improve_epochs += 1
 
@@ -113,14 +116,14 @@ class BPR:
         scores = np.dot(self.item_factors, user_vec)
         return scores
 
-    def recommend(self, user_id, known_items=set(), top_k=5):
+    def recommend(self, user_id, known_items=set(), top_k=10):
         scores = self.predict(user_id)
         for item_id in known_items:
             scores[item_id] = -np.inf  # Mask known items
         top_items = np.argsort(-scores)[:top_k]
         return top_items.tolist()
 
-    def save_bpr_model(self, user2id, item2id, path="bpr_model4_with_evaluations.pkl"):
+    def save_bpr_model(self, user2id, item2id, path="bpr_model5_with_evaluations.pkl"):
         model_data = {
             "user_factors": self.user_factors,
             "item_factors": self.item_factors,
@@ -131,7 +134,7 @@ class BPR:
             pickle.dump(model_data, f)
         print(f"Model saved to {path}")
 
-    def evaluate_all_metrics(self, df, user2id, item2id, k=5, max_users=1000):
+    def evaluate_all_metrics(self, df, user2id, item2id, k=10, max_users=1000):
         from collections import defaultdict
         import random
 
