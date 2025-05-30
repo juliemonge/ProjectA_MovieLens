@@ -1,5 +1,8 @@
 from BPR import BPR
 import pandas as pd
+from sklearn.model_selection import train_test_split
+
+
 
 df = pd.read_csv("generated_data/user_pairwise_preferences.csv")
 
