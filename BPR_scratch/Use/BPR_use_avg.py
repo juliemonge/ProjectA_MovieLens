@@ -82,6 +82,11 @@ for item in recommendations:
     print(f"Item {item}: in model? {'Yes' if item in item2id else 'No'}")
 
 
+for i in range(5):
+    user = random.choice(list(user2id.values()))
+    scores = user_factors[user] @ item_factors.T
+    top_items = np.argsort(-scores)[:10]
+    print(f"User {user} top items:", [id2item[i] for i in top_items])
 
 """
 for i, group in enumerate(groups, 1):

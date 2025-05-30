@@ -6,7 +6,7 @@ import pickle
 from scipy.special import expit
 
 class BPR:
-    def __init__(self, num_users, num_items, latent_dim=256, learning_rate=0.001, reg=0.025, k=10, epochs=10, max_users=1000):
+    def __init__(self, num_users, num_items, latent_dim=32, learning_rate=0.005, reg=0.025, k=10, epochs=20, max_users=1000):
         self.num_users = num_users
         self.num_items = num_items
         self.latent_dim = latent_dim
@@ -50,7 +50,7 @@ class BPR:
                 if current_precision > best_precision:
                     best_precision = current_precision
                     no_improve_epochs = 0
-                    self.save_bpr_model(user2id, item2id, path="best_model5_trainval.pkl")
+                    self.save_bpr_model(user2id, item2id, path="best_model6_trainval.pkl")
                 else:
                     no_improve_epochs += 1
 
@@ -124,7 +124,7 @@ class BPR:
         top_items = np.argsort(-scores)[:top_k]
         return top_items.tolist()
 
-    def save_bpr_model(self, user2id, item2id, path="bpr_model5_trainval.pkl"):
+    def save_bpr_model(self, user2id, item2id, path="bpr_model6_trainval.pkl"):
         model_data = {
             "user_factors": self.user_factors,
             "item_factors": self.item_factors,

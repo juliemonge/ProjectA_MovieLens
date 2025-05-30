@@ -4,7 +4,7 @@ from BPR import BPR
 
 
 # Read and prepare data
-df = pd.read_csv("generated_data/user_pairwise_preferences.csv")
+df = pd.read_csv("generated_data/user_pairwise_preferences_max300.csv")
 
 # Map user and item IDs to indices
 user2id = {u: idx for idx, u in enumerate(df["User_ID"].unique())}
