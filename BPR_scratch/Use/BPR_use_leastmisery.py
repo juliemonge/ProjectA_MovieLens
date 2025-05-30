@@ -13,7 +13,7 @@ item_id_to_title = dict(zip(movies["item_id"], movies["title"]))
 ratings = pd.read_csv("data/ml-100k/u.data", sep="\t", header=None, names=["user_id", "item_id", "rating", "timestamp"])
 
 # Load trained BPR model
-with open("best_model5.pkl", "rb") as f:
+with open("best_model_weighted.pkl", "rb") as f:
     model = pickle.load(f)
 
 user_factors = model["user_factors"]
