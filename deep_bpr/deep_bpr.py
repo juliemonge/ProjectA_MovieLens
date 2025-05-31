@@ -391,3 +391,384 @@ print("\nEvaluation Metrics:")
 for metric, value in eval_metrics.items():
     print(f"{metric}: {value:.4f}")
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+def recommend_movies_with_titles(model, data, user_id_to_idx, item_id_to_idx, movie_data_path='data/ml-100k/u.item', n_users=5, n_recommendations=5):
+    """
+    Recommend movies with titles for random users using the trained model.
+    
+    Args:
+        model: The trained BPR model
+        data: The full dataset (DataFrame)
+        user_id_to_idx: Mapping from original user ID to index
+        item_id_to_idx: Mapping from original item ID to index
+        item_id_to_original: Reverse mapping from index to original item ID
+        movie_data_path: Path to the movie metadata file (u.item)
+        n_users: Number of random users to select
+        n_recommendations: Number of recommendations per user
+        
+    Returns:
+        Dictionary of recommendations {user_id: list_of_recommended_items}
+        where each item is a dictionary with 'item_id' and 'title'
+    """
+    # Create reverse mapping for item indices to original IDs
+    idx_to_item_id = {v: k for k, v in item_id_to_idx.items()}
+    
+    # Load movie metadata
+    try:
+        # The u.item file has 24 columns separated by |
+        # We only need the first two columns (item_id and title)
+        movie_cols = ['item_id', 'title'] + [f'extra_{i}' for i in range(22)]
+        movie_data = pd.read_csv(movie_data_path, sep='|', encoding='latin-1', 
+                               header=None, names=movie_cols, usecols=[0, 1])
+        movie_data['item_id'] = movie_data['item_id'].astype(int)  # Ensure matching types
+    except Exception as e:
+        print(f"Warning: Could not load movie metadata. Using item IDs only. Error: {e}")
+        movie_data = None
+    
+    # Get embeddings from the model
+    user_embedding_layer = model.get_layer('user_embedding')
+    item_embedding_layer = model.get_layer('item_embedding')
+    
+    user_embeddings = user_embedding_layer.weights[0].numpy()
+    item_embeddings = item_embedding_layer.weights[0].numpy()
+    
+    # Select random users from the test set
+    test_users = data['user_id'].unique()
+    selected_users = np.random.choice(test_users, size=min(n_users, len(test_users)), replace=False)
+    
+    recommendations = {}
+    
+    for user_id in selected_users:
+        # Get user index
+        user_idx = user_id_to_idx.get(user_id)
+        if user_idx is None:
+            continue
+            
+        # Get items already interacted with by the user (to exclude from recommendations)
+        interacted_items = set(data[data['user_id'] == user_id]['item_idx'])
+        
+        # Get all candidate items (not interacted with)
+        all_items = set(item_id_to_idx.values())
+        candidate_items = list(all_items - interacted_items)
+        
+        if not candidate_items:
+            recommendations[user_id] = []
+            continue
+            
+        # Get user embedding
+        user_embedding = user_embeddings[user_idx]
+        
+        # Compute scores for all candidate items
+        item_scores = np.dot(item_embeddings[candidate_items], user_embedding)
+        
+        # Get top N recommendations
+        top_n_indices = np.argsort(-item_scores)[:n_recommendations]
+        recommended_item_indices = [candidate_items[i] for i in top_n_indices]
+        
+        # Convert item indices back to original IDs and get titles
+        recommended_items = []
+        for idx in recommended_item_indices:
+            item_id = idx_to_item_id[idx]
+            if movie_data is not None:
+                title_match = movie_data[movie_data['item_id'] == item_id]
+                title = title_match['title'].values[0] if not title_match.empty else f"Item {item_id}"
+            else:
+                title = f"Item {item_id}"
+            recommended_items.append({'item_id': item_id, 'title': title})
+        
+        recommendations[user_id] = recommended_items
+    
+    return recommendations
+
+# Example usage:
+recommendations = recommend_movies_with_titles(
+    model, 
+    data, 
+    user_id_to_idx, 
+    item_id_to_idx, 
+    movie_data_path='data/ml-100k/u.item'  # Update this path if needed
+)
+
+print("\nMovie Recommendations for 5 Random Users:")
+for user_id, items in recommendations.items():
+    print(f"\nUser {user_id} recommended movies:")
+    for i, item in enumerate(items, 1):
+        print(f"{i}. {item['title']} (ID: {item['item_id']})")
+
+
+
+
+
+
+
+
+def group_recommendations(model, data, user_id_to_idx, item_id_to_idx, user_ids, movie_data_path='data/ml-100k/u.item', n_recommendations=5):
+    """
+    Make movie recommendations for a group of users to watch together.
+    
+    Args:
+        model: The trained BPR model
+        data: The full dataset (DataFrame)
+        user_id_to_idx: Mapping from original user ID to index
+        item_id_to_idx: Mapping from original item ID to index
+        user_ids: List of user IDs in the group
+        movie_data_path: Path to movie metadata file
+        n_recommendations: Number of recommendations to return
+        
+    Returns:
+        Dictionary containing:
+        - 'recommendations': list of recommended items with titles
+        - 'evaluation': dictionary of evaluation metrics
+    """
+    # Create reverse mapping for item indices
+    idx_to_item_id = {v: k for k, v in item_id_to_idx.items()}
+    
+    # Load movie metadata
+    try:
+        movie_cols = ['item_id', 'title'] + [f'extra_{i}' for i in range(22)]
+        movie_data = pd.read_csv(movie_data_path, sep='|', encoding='latin-1', 
+                               header=None, names=movie_cols, usecols=[0, 1])
+        movie_data['item_id'] = movie_data['item_id'].astype(int)
+    except Exception as e:
+        print(f"Warning: Could not load movie metadata. Error: {e}")
+        movie_data = None
+    
+    # Get embeddings
+    user_embedding_layer = model.get_layer('user_embedding')
+    item_embedding_layer = model.get_layer('item_embedding')
+    user_embeddings = user_embedding_layer.weights[0].numpy()
+    item_embeddings = item_embedding_layer.weights[0].numpy()
+    
+    # Get items already rated by any group member (to exclude)
+    interacted_items = set()
+    for user_id in user_ids:
+        user_idx = user_id_to_idx.get(user_id)
+        if user_idx is not None:
+            interacted_items.update(data[data['user_id'] == user_id]['item_idx'])
+    
+    # Get all candidate items
+    all_items = set(item_id_to_idx.values())
+    candidate_items = list(all_items - interacted_items)
+    
+    if not candidate_items:
+        return {'recommendations': [], 'evaluation': {}}
+    
+    # Calculate group scores using average aggregation
+    group_scores = np.zeros(len(candidate_items))
+    valid_users = 0
+    
+    for user_id in user_ids:
+        user_idx = user_id_to_idx.get(user_id)
+        if user_idx is None:
+            continue
+            
+        user_embedding = user_embeddings[user_idx]
+        group_scores += np.dot(item_embeddings[candidate_items], user_embedding)
+        valid_users += 1
+    
+    if valid_users == 0:
+        return {'recommendations': [], 'evaluation': {}}
+    
+    group_scores /= valid_users
+    
+    # Get top recommendations
+    top_indices = np.argsort(-group_scores)[:n_recommendations]
+    recommended_items = []
+    
+    for idx in top_indices:
+        item_idx = candidate_items[idx]
+        item_id = idx_to_item_id[item_idx]
+        if movie_data is not None:
+            title_match = movie_data[movie_data['item_id'] == item_id]
+            title = title_match['title'].values[0] if not title_match.empty else f"Item {item_id}"
+        else:
+            title = f"Item {item_id}"
+        recommended_items.append({'item_id': item_id, 'title': title, 'score': group_scores[idx]})
+    
+    # Evaluation metrics
+    evaluation = evaluate_group_recommendations(model, data, user_ids, user_id_to_idx, item_id_to_idx, 
+                                             candidate_items, group_scores, top_indices)
+    
+    return {'recommendations': recommended_items, 'evaluation': evaluation}
+
+def evaluate_group_recommendations(model, data, user_ids, user_id_to_idx, item_id_to_idx, 
+                                 candidate_items, group_scores, top_indices, k=5):
+    """
+    Evaluate group recommendations using various metrics.
+    """
+    metrics = {}
+    
+    # Get embeddings
+    user_embedding_layer = model.get_layer('user_embedding')
+    item_embedding_layer = model.get_layer('item_embedding')
+    user_embeddings = user_embedding_layer.weights[0].numpy()
+    
+    # Calculate average precision at k
+    precisions = []
+    recalls = []
+    ndcgs = []
+    
+    for user_id in user_ids:
+        user_idx = user_id_to_idx.get(user_id)
+        if user_idx is None:
+            continue
+            
+        # Get user's positive items in test set
+        pos_test_items = set(data[data['user_id'] == user_id]['item_idx'])
+        if not pos_test_items:
+            continue
+            
+        # Create binary relevance labels for all candidate items
+        relevance = np.array([1 if item in pos_test_items else 0 for item in candidate_items])
+        
+        # Precision@K
+        top_k_relevance = relevance[top_indices[:k]]
+        precision = np.sum(top_k_relevance) / k
+        precisions.append(precision)
+        
+        # Recall@K
+        recall = np.sum(top_k_relevance) / len(pos_test_items)
+        recalls.append(recall)
+        
+        # NDCG@K
+        dcg = 0
+        for i, rel in enumerate(top_k_relevance):
+            dcg += rel / np.log2(i + 2)
+        idcg = sum(1 / np.log2(i + 2) for i in range(min(k, len(pos_test_items))))
+        ndcg = dcg / idcg if idcg > 0 else 0
+        ndcgs.append(ndcg)
+    
+    if precisions:
+        metrics['avg_precision@k'] = np.mean(precisions)
+        metrics['avg_recall@k'] = np.mean(recalls)
+        metrics['avg_ndcg@k'] = np.mean(ndcgs)
+    
+    # Calculate group satisfaction (average of top scores)
+    if len(top_indices) > 0:
+        metrics['group_satisfaction'] = np.mean(group_scores[top_indices[:k]])
+    
+    # Calculate similarity between group members' preferences
+    if len(user_ids) > 1:
+        user_indices = [user_id_to_idx[uid] for uid in user_ids if uid in user_id_to_idx]
+        if len(user_indices) > 1:
+            user_vectors = user_embeddings[user_indices]
+            similarity_matrix = np.corrcoef(user_vectors)
+            np.fill_diagonal(similarity_matrix, np.nan)
+            metrics['avg_user_similarity'] = np.nanmean(similarity_matrix)
+    
+    return metrics
+
+def evaluate_individual_recommendations(model, data, user_id, user_id_to_idx, item_id_to_idx, 
+                                      recommendations, k=5):
+    """
+    Evaluate individual recommendations.
+    """
+    user_idx = user_id_to_idx.get(user_id)
+    if user_idx is None:
+        return {}
+    
+    # Get user's positive items in test set
+    pos_test_items = set(data[data['user_id'] == user_id]['item_idx'])
+    if not pos_test_items:
+        return {}
+    
+    # Get recommended item IDs
+    recommended_item_ids = [item['item_id'] for item in recommendations]
+    recommended_item_indices = [item_id_to_idx[item_id] for item_id in recommended_item_ids 
+                             if item_id in item_id_to_idx]
+    
+    # Create binary relevance labels
+    relevance = [1 if idx in pos_test_items else 0 for idx in recommended_item_indices]
+    
+    metrics = {}
+    
+    # Precision@K
+    top_k_relevance = relevance[:k]
+    metrics['precision@k'] = np.sum(top_k_relevance) / k
+    
+    # Recall@K
+    metrics['recall@k'] = np.sum(top_k_relevance) / len(pos_test_items)
+    
+    # NDCG@K
+    dcg = 0
+    for i, rel in enumerate(top_k_relevance):
+        dcg += rel / np.log2(i + 2)
+    idcg = sum(1 / np.log2(i + 2) for i in range(min(k, len(pos_test_items))))
+    metrics['ndcg@k'] = dcg / idcg if idcg > 0 else 0
+    
+    return metrics
+
+# Example usage:
+
+# Select 3 random users for group recommendations
+group_users = np.random.choice(data['user_id'].unique(), size=3, replace=False)
+
+# Get group recommendations
+group_results = group_recommendations(
+    model,
+    data,
+    user_id_to_idx,
+    item_id_to_idx,
+    group_users,
+    movie_data_path='data/ml-100k/u.item'
+)
+
+# Print group recommendations
+print("\nGroup Recommendations for Users:", list(group_users))
+print("\nTop Movies for the Group:")
+for i, item in enumerate(group_results['recommendations'], 1):
+    print(f"{i}. {item['title']} (Score: {item['score']:.3f})")
+
+# Print group evaluation metrics
+print("\nGroup Evaluation Metrics:")
+for metric, value in group_results['evaluation'].items():
+    print(f"{metric}: {value:.4f}")
+
+# Also show individual recommendations with evaluation
+print("\nIndividual Recommendations with Evaluation:")
+for user_id in group_users:
+    # Get individual recommendations (using first function)
+    individual_recs = recommend_movies_with_titles(
+        model,
+        data,
+        user_id_to_idx,
+        item_id_to_idx,
+        movie_data_path='data/ml-100k/u.item',
+        n_users=1,
+        n_recommendations=5
+    ).get(user_id, [])
+    
+    if not individual_recs:
+        continue
+    
+    # Evaluate individual recommendations
+    individual_metrics = evaluate_individual_recommendations(
+        model,
+        data,
+        user_id,
+        user_id_to_idx,
+        item_id_to_idx,
+        individual_recs
+    )
+    
+    print(f"\nUser {user_id} Recommendations:")
+    for i, item in enumerate(individual_recs, 1):
+        print(f"{i}. {item['title']}")
+    
+    print("\nEvaluation Metrics:")
+    for metric, value in individual_metrics.items():
+        print(f"{metric}: {value:.4f}")
