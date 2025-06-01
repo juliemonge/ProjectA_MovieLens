@@ -13,7 +13,7 @@ item_id_to_title = dict(zip(movies["item_id"], movies["title"]))
 ratings = pd.read_csv("data/ml-100k/u.data", sep="\t", header=None, names=["user_id", "item_id", "rating", "timestamp"])
 
 # Load trained BPR model
-with open("best_model1_weighted.pkl", "rb") as f:
+with open("Models/best_model1_weighted.pkl", "rb") as f:
     model = pickle.load(f)
 
 user_factors = model["user_factors"]
@@ -23,8 +23,8 @@ item2id = model["item2id"]
 id2item = {v: k for k, v in item2id.items()}
 id2user = {v: k for k, v in user2id.items()}
 
-# ---- Define Helper Functions ----
-def generate_user_groups(user_ids, group_size=4, num_groups=1):
+# Define Helper Functions
+def generate_user_groups(user_ids, group_size=3, num_groups=1):
     user_ids = list(user_ids)
     random.shuffle(user_ids)
     
@@ -63,12 +63,12 @@ def compute_group_precision_at_k(group, recommendations, ratings_df, id2user, k=
     precision = hits / total if total > 0 else 0
     return precision * 100
 
-# ---- MAIN EXECUTION ----
+# Main execution
 all_user_ids = list(user2id.values())
-groups = generate_user_groups(all_user_ids, group_size=4, num_groups=1)
+groups = generate_user_groups(all_user_ids, group_size=3, num_groups=1)
 
 for i, group in enumerate(groups, 1):
-    print(f"\n🎬 Group {i} internal user IDs:", group)
+    print(f"\n Group {i} internal user IDs:", group)
 
     predictions = predict_scores_for_users(user_factors, item_factors, group)
     aggregated = least_misery_aggregation(predictions)
@@ -78,9 +78,9 @@ for i, group in enumerate(groups, 1):
 
     # Evaluate precision@k
     precision = compute_group_precision_at_k(group, recommendations, ratings, id2user, k=10)
-    print(f"✅ Precision@10 for Group {i}: {precision:.2f}%")
+    print(f" Precision@10 for Group {i}: {precision:.2f}%")
 
     # Show titles
     titles = [item_id_to_title.get(item_id, f"Movie {item_id}") for item_id in recommendations]
-    print("🎥 Titles:", titles)
+    print(" Titles:", titles)
 
