@@ -1,0 +1,44 @@
+import pandas as pd
+import itertools
+import random
+
+# Load MovieLens dataset (tab-separated, no headers)
+df = pd.read_csv("data/ml-100k/u.data", delimiter="\t", header=None, names=["user_id", "item_id", "rating", "timestamp"])
+df = df.drop(columns=["timestamp"])
+
+pairwise_prefs = []
+
+for user_id, user_group in df.groupby("user_id"):
+    movies = user_group[["item_id", "rating"]].values
+    user_pairs = []
+
+    for (movie_a, rating_a), (movie_b, rating_b) in itertools.combinations(movies, 2):
+        if rating_a == rating_b:
+            continue  # skip equal ratings
+
+        # Identify preference direction
+        if rating_a > rating_b:
+            preferred, not_preferred = movie_a, movie_b
+            diff = rating_a - rating_b
+        else:
+            preferred, not_preferred = movie_b, movie_a
+            diff = rating_b - rating_a
+
+        if diff >= 2:
+            user_pairs.append((user_id, preferred, not_preferred))
+        elif diff == 1:
+            if random.random() < 0.25:
+                user_pairs.append((user_id, preferred, not_preferred))
+
+        # Stop if we reach 100 pairs
+        if len(user_pairs) >= 300:
+            break
+
+    pairwise_prefs.extend(user_pairs)
+
+# Convert to DataFrame
+pairwise_df = pd.DataFrame(pairwise_prefs, columns=["User_ID", "Preferred", "Not_Preferred"])
+
+# Save to CSV
+pairwise_df.to_csv("user_pairwise_preferences_max300.csv", index=False)
+print(f"✅ Saved {len(pairwise_df)} pairwise preferences to 'user_pairwise_preferences_max100.csv'")
