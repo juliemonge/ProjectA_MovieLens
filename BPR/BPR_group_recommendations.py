@@ -5,15 +5,15 @@ import pandas as pd
 from collections import defaultdict
 
 # Load MovieLens item metadata
-movies = pd.read_csv("data/ml-100k/u.item", sep='|', header=None, encoding='latin-1', usecols=[0, 1])
+movies = pd.read_csv("MovieLens100k/ml-100k/u.item", sep='|', header=None, encoding='latin-1', usecols=[0, 1])
 movies.columns = ["item_id", "title"]
 item_id_to_title = dict(zip(movies["item_id"], movies["title"]))
 
 # Load original ratings data
-ratings = pd.read_csv("data/ml-100k/u.data", sep="\t", header=None, names=["user_id", "item_id", "rating", "timestamp"])
+ratings = pd.read_csv("MovieLens100k/ml-100k/u.data", sep="\t", header=None, names=["user_id", "item_id", "rating", "timestamp"])
 
 # Load trained BPR model
-with open("Models/best_model1_weighted.pkl", "rb") as f:
+with open("Models/final_model.pkl", "rb") as f:
     model = pickle.load(f)
 
 user_factors = model["user_factors"]
